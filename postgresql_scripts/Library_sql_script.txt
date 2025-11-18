@@ -1,0 +1,263 @@
+-- Create Library Database
+CREATE DATABASE library_system;
+\c library_system;
+
+-- Books table
+CREATE TABLE books (
+    book_id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    author VARCHAR(255) NOT NULL,
+    isbn VARCHAR(20) UNIQUE,
+    publication_year INTEGER,
+    publisher VARCHAR(100),
+    genre VARCHAR(50),
+    total_copies INTEGER DEFAULT 1,
+    available_copies INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Members table
+CREATE TABLE members (
+    member_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    phone VARCHAR(20),
+    address TEXT,
+    membership_date DATE DEFAULT CURRENT_DATE,
+    status VARCHAR(20) DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive', 'Suspended'))
+);
+
+-- Borrowing records table
+CREATE TABLE borrowing_records (
+    record_id SERIAL PRIMARY KEY,
+    book_id INTEGER REFERENCES books(book_id) ON DELETE CASCADE,
+    member_id INTEGER REFERENCES members(member_id) ON DELETE CASCADE,
+    borrow_date DATE DEFAULT CURRENT_DATE,
+    due_date DATE NOT NULL,
+    return_date DATE,
+    status VARCHAR(20) DEFAULT 'Borrowed' CHECK (status IN ('Borrowed', 'Returned', 'Overdue')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Fines table
+CREATE TABLE fines (
+    fine_id SERIAL PRIMARY KEY,
+    record_id INTEGER REFERENCES borrowing_records(record_id) ON DELETE CASCADE,
+    member_id INTEGER REFERENCES members(member_id) ON DELETE CASCADE,
+    amount DECIMAL(8,2) NOT NULL,
+    fine_date DATE DEFAULT CURRENT_DATE,
+    paid_date DATE,
+    reason VARCHAR(100) DEFAULT 'Overdue',
+    status VARCHAR(20) DEFAULT 'Unpaid' CHECK (status IN ('Unpaid', 'Paid', 'Waived'))
+);
+
+-- Insert sample data
+-- Sample books
+INSERT INTO books (title, author, isbn, publication_year, genre, total_copies, available_copies) VALUES
+('The Great Gatsby', 'F. Scott Fitzgerald', '9780743273565', 1925, 'Fiction', 3, 3),
+('To Kill a Mockingbird', 'Harper Lee', '9780061120084', 1960, 'Fiction', 2, 2),
+('1984', 'George Orwell', '9780451524935', 1949, 'Science Fiction', 4, 4),
+('Pride and Prejudice', 'Jane Austen', '9780141439518', 1813, 'Romance', 2, 2);
+
+-- Sample members
+INSERT INTO members (first_name, last_name, email, phone, address) VALUES
+('John', 'Smith', 'john.smith@email.com', '555-0101', '123 Main St, Anytown'),
+('Sarah', 'Johnson', 'sarah.johnson@email.com', '555-0102', '456 Oak Ave, Somewhere'),
+('Michael', 'Brown', 'michael.brown@email.com', '555-0103', '789 Pine Rd, Nowhere');
+
+-- Functions and procedures
+-- Function to calculate due date (14 days from borrow date)
+CREATE OR REPLACE FUNCTION calculate_due_date(borrow_days INTEGER DEFAULT 14)
+RETURNS DATE AS $$
+BEGIN
+    RETURN CURRENT_DATE + borrow_days;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to borrow a book
+CREATE OR REPLACE FUNCTION borrow_book(
+    p_book_id INTEGER,
+    p_member_id INTEGER,
+    p_due_days INTEGER DEFAULT 14
+) RETURNS INTEGER AS $$
+DECLARE
+    v_available_copies INTEGER;
+    v_record_id INTEGER;
+BEGIN
+    -- Check if book is available
+    SELECT available_copies INTO v_available_copies 
+    FROM books WHERE book_id = p_book_id;
+    
+    IF v_available_copies < 1 THEN
+        RAISE EXCEPTION 'Book is not available for borrowing';
+    END IF;
+    
+    -- Create borrowing record
+    INSERT INTO borrowing_records (book_id, member_id, due_date)
+    VALUES (p_book_id, p_member_id, calculate_due_date(p_due_days))
+    RETURNING record_id INTO v_record_id;
+    
+    -- Update available copies
+    UPDATE books 
+    SET available_copies = available_copies - 1 
+    WHERE book_id = p_book_id;
+    
+    RETURN v_record_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to return a book
+CREATE OR REPLACE FUNCTION return_book(
+    p_record_id INTEGER
+) RETURNS VOID AS $$
+DECLARE
+    v_book_id INTEGER;
+    v_due_date DATE;
+    v_return_date DATE := CURRENT_DATE;
+BEGIN
+    -- Get book_id and due_date
+    SELECT book_id, due_date INTO v_book_id, v_due_date
+    FROM borrowing_records 
+    WHERE record_id = p_record_id AND return_date IS NULL;
+    
+    IF v_book_id IS NULL THEN
+        RAISE EXCEPTION 'Borrowing record not found or book already returned';
+    END IF;
+    
+    -- Update borrowing record
+    UPDATE borrowing_records 
+    SET return_date = v_return_date,
+        status = CASE 
+            WHEN v_return_date > v_due_date THEN 'Overdue'
+            ELSE 'Returned'
+        END
+    WHERE record_id = p_record_id;
+    
+    -- Update available copies
+    UPDATE books 
+    SET available_copies = available_copies + 1 
+    WHERE book_id = v_book_id;
+    
+    -- Check for overdue and create fine if applicable
+    IF v_return_date > v_due_date THEN
+        INSERT INTO fines (record_id, member_id, amount, reason)
+        SELECT p_record_id, member_id, 
+               (v_return_date - v_due_date) * 0.50, -- $0.50 per day late
+               'Overdue'
+        FROM borrowing_records 
+        WHERE record_id = p_record_id;
+    END IF;
+    
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to update overdue status
+CREATE OR REPLACE FUNCTION update_overdue_status()
+RETURNS VOID AS $$
+BEGIN
+    -- Update status to overdue for books not returned past due date
+    UPDATE borrowing_records 
+    SET status = 'Overdue'
+    WHERE return_date IS NULL 
+    AND due_date < CURRENT_DATE 
+    AND status != 'Overdue';
+    
+    -- Create fines for newly overdue books
+    INSERT INTO fines (record_id, member_id, amount, reason)
+    SELECT br.record_id, br.member_id, 
+           (CURRENT_DATE - br.due_date) * 0.50,
+           'Overdue'
+    FROM borrowing_records br
+    WHERE br.return_date IS NULL 
+    AND br.due_date < CURRENT_DATE 
+    AND br.record_id NOT IN (
+        SELECT record_id FROM fines WHERE status = 'Unpaid'
+    );
+END;
+$$ LANGUAGE plpgsql;
+
+-- Useful views
+-- View for currently borrowed books
+CREATE VIEW current_borrowings AS
+SELECT 
+    br.record_id,
+    b.title,
+    b.author,
+    m.first_name || ' ' || m.last_name AS member_name,
+    m.email,
+    br.borrow_date,
+    br.due_date,
+    br.status,
+    CASE 
+        WHEN br.due_date < CURRENT_DATE AND br.return_date IS NULL 
+        THEN CURRENT_DATE - br.due_date
+        ELSE 0
+    END AS days_overdue
+FROM borrowing_records br
+JOIN books b ON br.book_id = b.book_id
+JOIN members m ON br.member_id = m.member_id
+WHERE br.return_date IS NULL;
+
+-- View for member borrowing history
+CREATE VIEW member_borrowing_history AS
+SELECT 
+    m.member_id,
+    m.first_name || ' ' || m.last_name AS member_name,
+    b.title,
+    b.author,
+    br.borrow_date,
+    br.due_date,
+    br.return_date,
+    br.status
+FROM members m
+JOIN borrowing_records br ON m.member_id = br.member_id
+JOIN books b ON br.book_id = b.book_id
+ORDER BY m.member_id, br.borrow_date DESC;
+
+-- View for outstanding fines
+CREATE VIEW outstanding_fines AS
+SELECT 
+    m.member_id,
+    m.first_name || ' ' || m.last_name AS member_name,
+    m.email,
+    f.amount,
+    f.fine_date,
+    f.reason,
+    b.title
+FROM fines f
+JOIN members m ON f.member_id = m.member_id
+JOIN borrowing_records br ON f.record_id = br.record_id
+JOIN books b ON br.book_id = b.book_id
+WHERE f.status = 'Unpaid';
+
+-- Example usage and queries:
+
+-- 1. Borrow a book
+-- SELECT borrow_book(1, 1, 14); -- Book ID 1, Member ID 1, 14 days
+
+-- 2. Return a book
+-- SELECT return_book(1); -- Record ID 1
+
+-- 3. Update overdue status (run daily via cron job)
+-- SELECT update_overdue_status();
+
+-- 4. Query all books borrowed by a specific member
+-- SELECT * FROM current_borrowings WHERE member_name LIKE '%John Smith%';
+
+-- 5. List all overdue books
+-- SELECT * FROM current_borrowings WHERE days_overdue > 0;
+
+-- 6. Check member's outstanding fines
+-- SELECT * FROM outstanding_fines WHERE member_id = 1;
+
+-- 7. Pay a fine
+-- UPDATE fines SET status = 'Paid', paid_date = CURRENT_DATE WHERE fine_id = 1;
+
+-- Indexes for better performance
+CREATE INDEX idx_borrowing_records_book_id ON borrowing_records(book_id);
+CREATE INDEX idx_borrowing_records_member_id ON borrowing_records(member_id);
+CREATE INDEX idx_borrowing_records_due_date ON borrowing_records(due_date);
+CREATE INDEX idx_borrowing_records_status ON borrowing_records(status);
+CREATE INDEX idx_fines_member_id ON fines(member_id);
+CREATE INDEX idx_fines_status ON fines(status);

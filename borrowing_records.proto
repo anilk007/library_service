@@ -1,0 +1,272 @@
+syntax = "proto3";
+
+package borrowing;
+
+import "google/protobuf/timestamp.proto";
+
+// The message representing a BorrowingRecord object
+message BorrowingRecord {
+  string record_id = 1;
+  string book_id = 2;
+  string member_id = 3;
+  google.protobuf.Timestamp borrow_date = 4;
+  google.protobuf.Timestamp due_date = 5;
+  google.protobuf.Timestamp return_date = 6;
+  string status = 7; // Borrowed, Returned, Overdue
+  google.protobuf.Timestamp created_at = 8;
+}
+
+// Additional info for enriched responses
+message BookInfo {
+  string book_id = 1;
+  string title = 2;
+  string author = 3;
+  string isbn = 4;
+}
+
+message MemberInfo {
+  string member_id = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string email = 4;
+}
+
+message BorrowingRecordWithDetails {
+  BorrowingRecord record = 1;
+  BookInfo book_info = 2;
+  MemberInfo member_info = 3;
+  int32 days_overdue = 4;
+  bool is_overdue = 5;
+}
+
+// The request message for borrowing a book
+message BorrowBookRequest {
+  string book_id = 1;
+  string member_id = 2;
+  int32 borrow_days = 3; // Optional: number of days to borrow (default 14)
+  google.protobuf.Timestamp custom_due_date = 4; // Optional: specific due date
+}
+
+// The response message after borrowing a book
+message BorrowBookResponse {
+  bool success = 1;
+  string message = 2;
+  BorrowingRecord record = 3;
+  google.protobuf.Timestamp due_date = 4;
+}
+
+// The request message for returning a book
+message ReturnBookRequest {
+  string record_id = 1;
+  string book_id = 2; // Optional: provide either record_id or book_id
+  string member_id = 3; // Optional: needed if using book_id
+  google.protobuf.Timestamp return_date = 4; // Optional: custom return date (default current time)
+}
+
+// The response message after returning a book
+message ReturnBookResponse {
+  bool success = 1;
+  string message = 2;
+  BorrowingRecord record = 3;
+  double overdue_fine = 4; // Calculated fine if overdue
+  int32 days_overdue = 5;
+}
+
+// The request message for retrieving a borrowing record
+message GetBorrowingRecordRequest {
+  string record_id = 1;
+  string book_id = 2; // Optional: get active record for a book
+  string member_id = 3; // Optional: needed if using book_id
+}
+
+// The response message containing borrowing record data
+message GetBorrowingRecordResponse {
+  bool success = 1;
+  string message = 2;
+  BorrowingRecordWithDetails record = 3;
+}
+
+// The request message for retrieving all borrowing records
+message GetAllBorrowingRecordsRequest {
+  string status_filter = 1; // Filter by status: Borrowed, Returned, Overdue
+  string member_id = 2; // Filter by member
+  string book_id = 3; // Filter by book
+  google.protobuf.Timestamp from_date = 4; // Filter records from this date
+  google.protobuf.Timestamp to_date = 5; // Filter records to this date
+  int32 page = 6;
+  int32 page_size = 7;
+  bool include_details = 8; // Whether to include book and member details
+}
+
+// The response message containing multiple borrowing records
+message GetAllBorrowingRecordsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated BorrowingRecordWithDetails records = 3;
+  int32 total_count = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+// The request message for updating a borrowing record
+message UpdateBorrowingRecordRequest {
+  string record_id = 1;
+  BorrowingRecord record = 2;
+  repeated string update_mask = 3; // Fields to update
+}
+
+// The response message after updating a borrowing record
+message UpdateBorrowingRecordResponse {
+  bool success = 1;
+  string message = 2;
+  BorrowingRecord record = 3;
+}
+
+// The request message for extending due date
+message ExtendDueDateRequest {
+  string record_id = 1;
+  int32 additional_days = 2;
+  google.protobuf.Timestamp new_due_date = 3; // Optional: specific new due date
+  string reason = 4; // Reason for extension
+}
+
+// The response message after extending due date
+message ExtendDueDateResponse {
+  bool success = 1;
+  string message = 2;
+  BorrowingRecord record = 3;
+  google.protobuf.Timestamp old_due_date = 4;
+  google.protobuf.Timestamp new_due_date = 5;
+}
+
+// The request message for getting current borrowings
+message GetCurrentBorrowingsRequest {
+  string member_id = 1; // Optional: get borrowings for specific member
+  string book_id = 2; // Optional: get borrowings for specific book
+  bool include_overdue_only = 3; // Only include overdue borrowings
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+// The response message for current borrowings
+message GetCurrentBorrowingsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated BorrowingRecordWithDetails records = 3;
+  int32 total_count = 4;
+  int32 overdue_count = 5;
+}
+
+// The request message for getting member borrowing history
+message GetMemberBorrowingHistoryRequest {
+  string member_id = 1;
+  google.protobuf.Timestamp from_date = 2;
+  google.protobuf.Timestamp to_date = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+// The response message for member borrowing history
+message GetMemberBorrowingHistoryResponse {
+  bool success = 1;
+  string message = 2;
+  repeated BorrowingRecordWithDetails records = 3;
+  int32 total_count = 4;
+  int32 total_books_borrowed = 5;
+  int32 currently_borrowed = 6;
+}
+
+// The request message for getting book borrowing history
+message GetBookBorrowingHistoryRequest {
+  string book_id = 1;
+  google.protobuf.Timestamp from_date = 2;
+  google.protobuf.Timestamp to_date = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+// The response message for book borrowing history
+message GetBookBorrowingHistoryResponse {
+  bool success = 1;
+  string message = 2;
+  repeated BorrowingRecordWithDetails records = 3;
+  int32 total_count = 4;
+  int32 times_borrowed = 5;
+}
+
+// The request message for checking overdue records
+message GetOverdueRecordsRequest {
+  google.protobuf.Timestamp as_of_date = 1; // Optional: check overdue as of this date (default current)
+  string member_id = 2; // Optional: filter by member
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+// The response message for overdue records
+message GetOverdueRecordsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated BorrowingRecordWithDetails records = 3;
+  int32 total_count = 4;
+  int32 max_days_overdue = 5;
+}
+
+// Statistics about borrowing activities
+message BorrowingStatistics {
+  int32 total_borrowings = 1;
+  int32 current_borrowings = 2;
+  int32 overdue_borrowings = 3;
+  int32 borrowings_today = 4;
+  int32 returns_today = 5;
+  string most_borrowed_book = 6;
+  string most_active_member = 7;
+}
+
+// The request message for borrowing statistics
+message GetBorrowingStatisticsRequest {
+  google.protobuf.Timestamp from_date = 1;
+  google.protobuf.Timestamp to_date = 2;
+}
+
+// The response message with borrowing statistics
+message GetBorrowingStatisticsResponse {
+  bool success = 1;
+  string message = 2;
+  BorrowingStatistics statistics = 3;
+}
+
+// The Borrowing Records Service definition
+service BorrowingService {
+  // RPC to borrow a book
+  rpc BorrowBook (BorrowBookRequest) returns (BorrowBookResponse);
+
+  // RPC to return a book
+  rpc ReturnBook (ReturnBookRequest) returns (ReturnBookResponse);
+
+  // RPC to retrieve a single borrowing record
+  rpc GetBorrowingRecord (GetBorrowingRecordRequest) returns (GetBorrowingRecordResponse);
+
+  // RPC to retrieve all borrowing records with filtering
+  rpc GetAllBorrowingRecords (GetAllBorrowingRecordsRequest) returns (GetAllBorrowingRecordsResponse);
+
+  // RPC to update a borrowing record
+  rpc UpdateBorrowingRecord (UpdateBorrowingRecordRequest) returns (UpdateBorrowingRecordResponse);
+
+  // RPC to extend due date for a borrowing
+  rpc ExtendDueDate (ExtendDueDateRequest) returns (ExtendDueDateResponse);
+
+  // RPC to get current active borrowings
+  rpc GetCurrentBorrowings (GetCurrentBorrowingsRequest) returns (GetCurrentBorrowingsResponse);
+
+  // RPC to get member's borrowing history
+  rpc GetMemberBorrowingHistory (GetMemberBorrowingHistoryRequest) returns (GetMemberBorrowingHistoryResponse);
+
+  // RPC to get book's borrowing history
+  rpc GetBookBorrowingHistory (GetBookBorrowingHistoryRequest) returns (GetBookBorrowingHistoryResponse);
+
+  // RPC to get overdue borrowing records
+  rpc GetOverdueRecords (GetOverdueRecordsRequest) returns (GetOverdueRecordsResponse);
+
+  // RPC to get borrowing statistics
+  rpc GetBorrowingStatistics (GetBorrowingStatisticsRequest) returns (GetBorrowingStatisticsResponse);
+}

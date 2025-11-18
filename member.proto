@@ -1,0 +1,188 @@
+syntax = "proto3";
+
+package member;
+
+import "google/protobuf/timestamp.proto";
+
+// The message representing a Member object
+message Member {
+  string member_id = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string email = 4;
+  string phone = 5;
+  string address = 6;
+  google.protobuf.Timestamp membership_date = 7;
+  string status = 8; // Active, Inactive, Suspended
+  google.protobuf.Timestamp created_at = 9;
+}
+
+// The request message for creating a new member
+message CreateMemberRequest {
+  Member member = 1;
+}
+
+// The response message after attempting to create a member
+message CreateMemberResponse {
+  bool success = 1;
+  string message = 2;
+  Member member = 3;
+}
+
+// The request message for retrieving a member
+message GetMemberRequest {
+  string member_id = 1;
+  string email = 2;
+}
+
+// The response message containing member data
+message GetMemberResponse {
+  bool success = 1;
+  string message = 2;
+  Member member = 3;
+}
+
+// The request message for retrieving all members
+message GetAllMembersRequest {
+  string status_filter = 1; // Filter by status: Active, Inactive, Suspended
+  string search_query = 2; // Search in name or email
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+// The response message containing multiple members
+message GetAllMembersResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Member members = 3;
+  int32 total_count = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+// The request message for updating a member
+message UpdateMemberRequest {
+  string member_id = 1;
+  Member member = 2;
+  repeated string update_mask = 3; // Fields to update
+}
+
+// The response message after updating a member
+message UpdateMemberResponse {
+  bool success = 1;
+  string message = 2;
+  Member member = 3;
+}
+
+// The request message for deleting a member
+message DeleteMemberRequest {
+  string member_id = 1;
+  bool force_delete = 2; // Force delete even if member has active borrowings
+}
+
+// The response message after deleting a member
+message DeleteMemberResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// The request message for updating member status
+message UpdateMemberStatusRequest {
+  string member_id = 1;
+  string status = 2; // Active, Inactive, Suspended
+  string reason = 3; // Reason for status change
+}
+
+// The response message after updating member status
+message UpdateMemberStatusResponse {
+  bool success = 1;
+  string message = 2;
+  Member member = 3;
+}
+
+// The request message for searching members
+message SearchMembersRequest {
+  string query = 1; // Search in name, email, or phone
+  string status = 2; // Filter by status
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+// The response message for search results
+message SearchMembersResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Member members = 3;
+  int32 total_count = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+// The request message for checking member eligibility
+message CheckMemberEligibilityRequest {
+  string member_id = 1;
+}
+
+// The response message for eligibility check
+message CheckMemberEligibilityResponse {
+  bool success = 1;
+  string message = 2;
+  bool can_borrow = 3;
+  string reason = 4; // Reason if cannot borrow
+  int32 active_borrowings = 5; // Number of currently borrowed books
+  bool has_overdue_books = 6;
+  bool has_unpaid_fines = 7;
+  Member member = 8;
+}
+
+// The request message for getting member statistics
+message GetMemberStatisticsRequest {
+  string member_id = 1;
+}
+
+// Statistics about member's library usage
+message MemberStatistics {
+  int32 total_books_borrowed = 1;
+  int32 current_borrowings = 2;
+  int32 overdue_books = 3;
+  int32 total_fines_paid = 4;
+  int32 unpaid_fines = 5;
+  google.protobuf.Timestamp membership_duration = 6;
+}
+
+// The response message with member statistics
+message GetMemberStatisticsResponse {
+  bool success = 1;
+  string message = 2;
+  MemberStatistics statistics = 3;
+}
+
+// The Member Management Service definition
+service MemberService {
+  // RPC to create a new member record
+  rpc CreateMember (CreateMemberRequest) returns (CreateMemberResponse);
+
+  // RPC to retrieve a single member by ID or email
+  rpc GetMember (GetMemberRequest) returns (GetMemberResponse);
+
+  // RPC to retrieve all members with optional filtering and pagination
+  rpc GetAllMembers (GetAllMembersRequest) returns (GetAllMembersResponse);
+
+  // RPC to update a member's information
+  rpc UpdateMember (UpdateMemberRequest) returns (UpdateMemberResponse);
+
+  // RPC to delete a member
+  rpc DeleteMember (DeleteMemberRequest) returns (DeleteMemberResponse);
+
+  // RPC to update only the member's status
+  rpc UpdateMemberStatus (UpdateMemberStatusRequest) returns (UpdateMemberStatusResponse);
+
+  // RPC to search members with various criteria
+  rpc SearchMembers (SearchMembersRequest) returns (SearchMembersResponse);
+
+  // RPC to check if a member is eligible to borrow books
+  rpc CheckMemberEligibility (CheckMemberEligibilityRequest) returns (CheckMemberEligibilityResponse);
+
+  // RPC to get member statistics and usage data
+  rpc GetMemberStatistics (GetMemberStatisticsRequest) returns (GetMemberStatisticsResponse);
+}

@@ -1,0 +1,145 @@
+syntax = "proto3";
+
+package book;
+
+import "google/protobuf/timestamp.proto";
+
+// The message representing a Book object
+message Book {
+  string title = 1;
+  string author = 2;
+  string isbn = 3;
+  int32 publication_year = 4;
+  string publisher = 5;
+  string genre = 6;
+  int32 total_copies = 7;
+  int32 available_copies = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+// The request message for creating a new book
+message CreateBookRequest {
+  Book book = 1;
+}
+
+// The response message after attempting to create a book
+message CreateBookResponse {
+  bool success = 1;
+  string message = 2;
+  Book book = 3;
+}
+
+// The request message for retrieving a book
+message GetBookRequest {
+  string book_id = 1;
+  string isbn = 2;
+}
+
+// The response message containing book data
+message GetBookResponse {
+  bool success = 1;
+  string message = 2;
+  Book book = 3;
+}
+
+// The request message for retrieving all books
+message GetAllBooksRequest {
+  string filter = 1; // Optional filter by genre, author, etc.
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+// The response message containing multiple books
+message GetAllBooksResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Book books = 3;
+  int32 total_count = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+// The request message for updating a book
+message UpdateBookRequest {
+  string book_id = 1;
+  Book book = 2;
+  repeated string update_mask = 3; // Fields to update
+}
+
+// The response message after updating a book
+message UpdateBookResponse {
+  bool success = 1;
+  string message = 2;
+  Book book = 3;
+}
+
+// The request message for deleting a book
+message DeleteBookRequest {
+  string book_id = 1;
+}
+
+// The response message after deleting a book
+message DeleteBookResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// The request message for searching books
+message SearchBooksRequest {
+  string query = 1; // Search in title, author, isbn
+  string genre = 2;
+  string author = 3;
+  int32 publication_year = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+// The response message for search results
+message SearchBooksResponse {
+  bool success = 1;
+  string message = 2;
+  repeated Book books = 3;
+  int32 total_count = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+// The request message for checking book availability
+message CheckAvailabilityRequest {
+  string book_id = 1;
+  string isbn = 2;
+}
+
+// The response message for availability check
+message CheckAvailabilityResponse {
+  bool success = 1;
+  string message = 2;
+  bool is_available = 3;
+  int32 available_copies = 4;
+  int32 total_copies = 5;
+  Book book = 6;
+}
+
+// The Book Management Service definition
+service BookService {
+  // RPC to create a new book record
+  rpc CreateBook (CreateBookRequest) returns (CreateBookResponse);
+
+  // RPC to retrieve a single book by ID or ISBN
+  rpc GetBook (GetBookRequest) returns (GetBookResponse);
+
+  // RPC to retrieve all books with optional filtering and pagination
+  rpc GetAllBooks (GetAllBooksRequest) returns (GetAllBooksResponse);
+
+  // RPC to update an existing book
+  rpc UpdateBook (UpdateBookRequest) returns (UpdateBookResponse);
+
+  // RPC to delete a book
+  rpc DeleteBook (DeleteBookRequest) returns (DeleteBookResponse);
+
+  // RPC to search books with various criteria
+  rpc SearchBooks (SearchBooksRequest) returns (SearchBooksResponse);
+
+  // RPC to check book availability
+  rpc CheckAvailability (CheckAvailabilityRequest) returns (CheckAvailabilityResponse);
+}
