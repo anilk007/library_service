@@ -1,12 +1,18 @@
+import logging
+
 from asyncpg import Pool
 from typing import List, Optional, Dict, Any
 from datetime import date
 
+logger = logging.getLogger(__name__)
 
 class BookTransactionRepository:
 
     @staticmethod
     async def create_transaction(pool: Pool, transaction_data: dict) -> Dict[str, Any]:
+        logger.info("create_transaction...", transaction_data);
+        logger.debug("2nd debug create_transaction...", transaction_data);
+
         query = """
             INSERT INTO book_transactions 
             (book_id, member_id, issue_date, due_date, return_date, status)

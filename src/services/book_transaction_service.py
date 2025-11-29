@@ -1,18 +1,17 @@
+import logging
 from datetime import datetime, timedelta, date
-from typing import List, Optional
-from src.models.book_transaction import BookTransactionCreate, BookTransactionUpdate, TransactionStatus
+from src.db import connect_db
 from src.config.book_library_config import BookLibraryConfig
+from src.models.book_transaction import BookTransactionCreate, BookTransactionUpdate, TransactionStatus
+from src.repositories.book_transaction_repository import BookTransactionRepository
 
-# Sample in-memory storage for demonstration
-transactions_db = []
-transaction_id_counter = 1
-
+logger = logging.getLogger(__name__)
 
 class BookTransactionService:
 
     @staticmethod
     async def create_transaction(transaction_data: BookTransactionCreate):
-        global transaction_id_counter
+        logger.info("create_transaction of service is called<><>")
 
         # Convert Pydantic model to dict
         transaction_dict = transaction_data.dict()
@@ -30,109 +29,157 @@ class BookTransactionService:
         if not transaction_dict.get('status'):
             transaction_dict['status'] = TransactionStatus.ISSUED
 
-        # Add system-generated fields
-        transaction_dict["transaction_id"] = transaction_id_counter
-        transaction_dict["created_at"] = datetime.now()
-
-        transactions_db.append(transaction_dict)
-        transaction_id_counter += 1
-
-        return {
-            "message": "Transaction created successfully",
-            "transaction": transaction_dict
-        }
+        # Get database pool and create transaction
+        pool = await connect_db()
+        try:
+            result = await BookTransactionRepository.create_transaction(pool, transaction_dict)
+            if result:
+                return {
+                    "message": "Transaction created successfully.<>..",
+                    "transaction": result
+                }
+            else:
+                return {"error": "Failed to create transaction"}
+        except Exception as e:
+            logger.error(f"Error creating transaction: {str(e)}")
+            return {"error": f"Database error: {str(e)}"}
 
     @staticmethod
-    async def borrow_book(book_id: int, member_id: int):
-        global transaction_id_counter
+    async def issue_book(book_id: int, member_id: int):
+        pool = await connect_db()
 
-        # Check if book is already borrowed and not returned
-        for transaction in transactions_db:
-            if (transaction["book_id"] == book_id and
-                    transaction["status"] in [TransactionStatus.ISSUED, TransactionStatus.OVERDUE]):
-                return {"error": "Book is already borrowed"}
+        try:
+            # Check if book is available using repository
+            is_available = await BookTransactionRepository.is_book_available(pool, book_id)
+            if not is_available:
+                return {"error": "Book is already issued"}
 
-        # Create new transaction with configurable due days
-        issue_date = date.today()
-        due_date = issue_date + timedelta(days=BookLibraryConfig.DEFAULT_DUE_DAYS)
+            # Create new transaction with configurable due days
+            issue_date = date.today()
+            due_date = issue_date + timedelta(days=BookLibraryConfig.DEFAULT_DUE_DAYS)
 
-        transaction = {
-            "transaction_id": transaction_id_counter,
-            "book_id": book_id,
-            "member_id": member_id,
-            "issue_date": issue_date,
-            "due_date": due_date,
-            "return_date": None,
-            "status": TransactionStatus.ISSUED,
-            "created_at": datetime.now()
-        }
+            transaction_data = {
+                "book_id": book_id,
+                "member_id": member_id,
+                "issue_date": issue_date,
+                "due_date": due_date,
+                "return_date": None,
+                "status": TransactionStatus.ISSUED
+            }
 
-        transactions_db.append(transaction)
-        transaction_id_counter += 1
+            # Create transaction using repository
+            result = await BookTransactionRepository.create_transaction(pool, transaction_data)
 
-        return {
-            "message": "Book borrowed successfully",
-            "transaction_id": transaction["transaction_id"],
-            "issue_date": transaction["issue_date"],
-            "due_date": transaction["due_date"],
-            "due_days": BookLibraryConfig.DEFAULT_DUE_DAYS
-        }
+            if result:
+                return {
+                    "message": "Book issued successfully",
+                    "transaction_id": result["transaction_id"],
+                    "issue_date": result["issue_date"],
+                    "due_date": result["due_date"],
+                    "due_days": BookLibraryConfig.DEFAULT_DUE_DAYS
+                }
+            else:
+                return {"error": "Failed to issue book"}
+
+        except Exception as e:
+            logger.error(f"Error issuing book: {str(e)}")
+            return {"error": f"Database error: {str(e)}"}
 
     @staticmethod
     async def return_book(transaction_id: int):
-        for transaction in transactions_db:
-            if (transaction["transaction_id"] == transaction_id and
-                    transaction["return_date"] is None):
-                transaction["return_date"] = date.today()
-                transaction["status"] = TransactionStatus.RETURNED
+        pool = await connect_db()
 
+        try:
+            # Check if transaction exists and is not returned
+            transaction = await BookTransactionRepository.get_transaction_by_id(pool, transaction_id)
+            if not transaction:
+                return {"error": "Transaction not found"}
+
+            if transaction.get('return_date') is not None:
+                return {"error": "Book already returned"}
+
+            # Mark as returned using repository
+            result = await BookTransactionRepository.mark_as_returned(pool, transaction_id)
+
+            if result:
                 return {"message": "Book returned successfully"}
+            else:
+                return {"error": "Failed to return book"}
 
-        return {"error": "Transaction not found or book already returned"}
+        except Exception as e:
+            logger.error(f"Error returning book: {str(e)}")
+            return {"error": f"Database error: {str(e)}"}
 
     @staticmethod
-    async def get_borrowed_books():
-        borrowed_books = [
-            t for t in transactions_db
-            if t["status"] in [TransactionStatus.ISSUED, TransactionStatus.OVERDUE]
-        ]
-        return {"borrowed_books": borrowed_books}
+    async def get_issued_books():
+        pool = await connect_db()
+
+        try:
+            # Get active transactions using repository
+            active_transactions = await BookTransactionRepository.get_active_transactions(pool)
+            return {"issued_books": active_transactions}
+        except Exception as e:
+            logger.error(f"Error getting issued books: {str(e)}")
+            return {"error": f"Database error: {str(e)}"}
 
     @staticmethod
     async def get_overdue_books():
-        current_date = date.today()
-        overdue_books = [
-            t for t in transactions_db
-            if t["status"] == TransactionStatus.ISSUED and t["due_date"] < current_date
-        ]
+        pool = await connect_db()
 
-        # Update status to overdue
-        for book in overdue_books:
-            book["status"] = TransactionStatus.OVERDUE
+        try:
+            # First update overdue status
+            await BookTransactionRepository.update_overdue_status(pool)
 
-        return {"overdue_books": overdue_books}
+            # Then get overdue transactions
+            overdue_transactions = await BookTransactionRepository.get_overdue_transactions(pool)
+            return {"overdue_books": overdue_transactions}
+        except Exception as e:
+            logger.error(f"Error getting overdue books: {str(e)}")
+            return {"error": f"Database error: {str(e)}"}
 
     @staticmethod
-    async def get_member_borrowed_books(member_id: int):
-        member_books = [
-            t for t in transactions_db
-            if t["member_id"] == member_id and
-               t["status"] in [TransactionStatus.ISSUED, TransactionStatus.OVERDUE]
-        ]
-        return {"member_borrowed_books": member_books}
+    async def get_member_issued_books(member_id: int):
+        pool = await connect_db()
+
+        try:
+            # Get member's active transactions using repository
+            member_transactions = await BookTransactionRepository.get_transactions_by_member(pool, member_id)
+
+            # Filter for issued/overdue books
+            active_books = [
+                t for t in member_transactions
+                if t["status"] in [TransactionStatus.ISSUED, TransactionStatus.OVERDUE]
+            ]
+
+            return {"member_issued_books": active_books}
+        except Exception as e:
+            logger.error(f"Error getting member issued books: {str(e)}")
+            return {"error": f"Database error: {str(e)}"}
 
     @staticmethod
     async def get_transaction(transaction_id: int):
-        for transaction in transactions_db:
-            if transaction["transaction_id"] == transaction_id:
+        pool = await connect_db()
+
+        try:
+            transaction = await BookTransactionRepository.get_transaction_by_id(pool, transaction_id)
+            if transaction:
                 return {"transaction": transaction}
-        return {"error": "Transaction not found"}
+            return {"error": "Transaction not found"}
+        except Exception as e:
+            logger.error(f"Error getting transaction: {str(e)}")
+            return {"error": f"Database error: {str(e)}"}
 
     @staticmethod
     async def update_transaction(transaction_id: int, update_data: BookTransactionUpdate):
-        for transaction in transactions_db:
-            if transaction["transaction_id"] == transaction_id:
-                update_dict = update_data.dict(exclude_unset=True)
-                transaction.update(update_dict)
-                return {"message": "Transaction updated successfully", "transaction": transaction}
-        return {"error": "Transaction not found"}
+        pool = await connect_db()
+
+        try:
+            update_dict = update_data.dict(exclude_unset=True)
+            result = await BookTransactionRepository.update_transaction(pool, transaction_id, update_dict)
+
+            if result:
+                return {"message": "Transaction updated successfully", "transaction": result}
+            return {"error": "Transaction not found"}
+        except Exception as e:
+            logger.error(f"Error updating transaction: {str(e)}")
+            return {"error": f"Database error: {str(e)}"}

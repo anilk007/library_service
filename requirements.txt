@@ -3,3 +3,4 @@ uvicorn[standard]
 asyncpg
 pydantic
 python-dotenv
+pydantic[email]

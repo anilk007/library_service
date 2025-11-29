@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 from fastapi import APIRouter
 from src.controllers.book_transaction_controller import BookTransactionController
 from src.models.book_transaction import BookTransactionCreate, BookTransactionUpdate
@@ -5,9 +9,9 @@ from src.models.book_transaction import BookTransactionCreate, BookTransactionUp
 # Create the router instance
 router = APIRouter(prefix="/transactions", tags=["Book Transactions"])
 
-@router.post("/borrow")
-async def borrow_book(book_id: int, member_id: int):
-    return await BookTransactionController.borrow_book(book_id, member_id)
+@router.post("/issue")
+async def issue_book(book_id: int, member_id: int):
+    return await BookTransactionController.issue_book(book_id, member_id)
 
 @router.post("/return/{transaction_id}")
 async def return_book(transaction_id: int):
@@ -22,11 +26,13 @@ async def get_overdue_books():
     return await BookTransactionController.get_overdue_books()
 
 @router.get("/member/{member_id}")
-async def get_member_borrowed_books(member_id: int):
-    return await BookTransactionController.get_member_borrowed_books(member_id)
+async def get_member_issued_books(member_id: int):
+    return await BookTransactionController.get_member_issued_books(member_id)
 
 @router.post("")
 async def create_transaction(transaction: BookTransactionCreate):
+    logger.info("create_transaction of routes is called..<>..")
+    print("create_transaction of routes is called")
     return await BookTransactionController.create_transaction(transaction)
 
 @router.get("/{transaction_id}")

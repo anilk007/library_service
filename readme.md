@@ -1,4 +1,5 @@
 
+py -m pip install -r requirements.txt
 
 (1) py -m pip install asyncpg --only-binary=all
 
@@ -18,9 +19,11 @@ py -m pip install python-dotenv
 
 py -m pip install asyncpg
 
-py -m pip install 'pydantic[email]'
+py -m pip install "pydantic[email]"
 
 "C:\Users\hello\AppData\Local\Programs\Python\Python312\python.exe" -m venv venv
+
+python -m venv venv
 
 venv\Scripts\activate
 
@@ -43,3 +46,7 @@ python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. borrowing_rec
 (5) py server.py
 
 gRPC Book Service server is listening on port 50051.
+
+(6) issues
+
+(a) access denied
