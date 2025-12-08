@@ -11,11 +11,21 @@ logger = logging.getLogger(__name__)
 logger.info("Configuration loaded successfully and application started.")
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from src.routes.book_routes import router as book_router
 from src.routes.member_routes import router as member_router
 from src.routes.book_transaction_routes import router as book_transaction_router
 
 app = FastAPI()
+
+# ✅ Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],        # You can replace with ["http://localhost:5173"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(book_router)
 app.include_router(member_router)
