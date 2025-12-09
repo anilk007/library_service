@@ -1,7 +1,31 @@
 
+(1) To start "library_service" backend application :
+
+step-1 : py -m venv venv
+
+step-2 : venv\Scripts\activate
+
+step-3 : uvicorn main:app --reload
+
+(2) To run unit test cases :
+
+pytest tests/unit/services/ --cov=src.services --cov-report=term-missing
+
+(3) Postman collection is available at
+documents/library_service.postman_collection.json
+
+(4) PostgreSQL Schema script is available at
+documents/postgresql_scripts/Library_sql_script.txt
+
+(5) Flow of data :
+Client → Routes → Controllers → Services → Repositories → Database
+Response ←       ←           ←          ←             ←
+
+
+(6) Application installation steps
 py -m pip install -r requirements.txt
 
-(1) py -m pip install asyncpg --only-binary=all
+(a) py -m pip install asyncpg --only-binary=all
 
 >pip install -r requirements.txt
 
@@ -31,26 +55,25 @@ venv\Scripts\activate
 
 >uvicorn main:app --reload
 
-(2) PostgreSQL Schema script is available in postgresql_scripts folder.
 
-(3) Generate the Protobuf Message File
+
+(7) Generate the Protobuf Message File
 
 protoc --js_out=import_style=commonjs,binary:. --proto_path=. book.proto
 protoc --js_out=import_style=commonjs,binary:. --proto_path=. member.proto
 protoc --js_out=import_style=commonjs,binary:. --proto_path=. borrowing_records.proto
 
-(4) pip install grpcio grpcio-tools
+(8) pip install grpcio grpcio-tools
 
 python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. book.proto
 python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. member.proto
 python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. borrowing_records.proto
 
-(5) py server.py
+(9) py server.py
 
 gRPC Book Service server is listening on port 50051.
 
-(6) Run tests
-
+(10)
 # Install test dependencies
 pip install -r requirements-test.txt
 
@@ -66,10 +89,10 @@ pytest --cov=src.services.book_service
 # Run specific test method
 pytest tests/test_book_service.py::TestBookService::test_add_book_success -v
 
-(7)
+(11)
 pytest --cov=src
 
-(8)
+(12)
 # Run all member service tests
 pytest tests/unit/services/test_member_service.py -v
 
@@ -87,7 +110,3 @@ pytest tests/unit/services/test_book_transaction_service.py --cov=src.services.b
 
 # Run all service tests
 pytest tests/unit/services/ --cov=src.services --cov-report=term-missing
-
-(6) issues
-
-(a) access denied
