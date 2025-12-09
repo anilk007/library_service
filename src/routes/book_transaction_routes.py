@@ -29,6 +29,11 @@ async def get_overdue_books():
 async def get_member_issued_books(member_id: int):
     return await BookTransactionController.get_member_issued_books(member_id)
 
+@router.get("/book/{book_id}/issued-members")
+async def get_book_issued_members(book_id: int):
+    return await BookTransactionController.get_book_issued_members(book_id)
+
+
 @router.post("")
 async def create_transaction(transaction: BookTransactionCreate):
     logger.info("create_transaction of routes is called..<>..")

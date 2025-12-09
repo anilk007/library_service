@@ -135,7 +135,7 @@ class BookTransactionService:
                 if t["status"] in [TransactionStatus.ISSUED, TransactionStatus.OVERDUE]
             ]
 
-            return {"member_issued_books": active_books}
+            return active_books
         except Exception as e:
             logger.error(f"Error getting member issued books: {str(e)}")
             return {"error": f"Database error: {str(e)}"}
@@ -167,3 +167,17 @@ class BookTransactionService:
         except Exception as e:
             logger.error(f"Error updating transaction: {str(e)}")
             return {"error": f"Database error: {str(e)}"}
+
+    # NEW METHOD: Get members who have a specific book issued
+    @staticmethod
+    async def get_book_issued_members(book_id: int):
+        pool = await connect_db()
+
+        try:
+            # Get active transactions for this book with member details
+            book_issued_members = await BookTransactionRepository.get_book_issued_members(pool, book_id)
+            return {"book_issued_members": book_issued_members}
+        except Exception as e:
+            logger.error(f"Error getting book issued members: {str(e)}")
+            return {"error": f"Database error: {str(e)}"}
+

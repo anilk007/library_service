@@ -36,3 +36,10 @@ class BookTransactionController:
     @staticmethod
     async def update_transaction(transaction_id: int, transaction):
         return await BookTransactionService.update_transaction(transaction_id, transaction)
+
+    # Get members who have a specific book issued
+
+    @staticmethod
+    async def get_book_issued_members(book_id: int):
+        return await BookTransactionService.get_book_issued_members(book_id)
+        pass

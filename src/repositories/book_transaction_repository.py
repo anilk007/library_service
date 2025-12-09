@@ -6,12 +6,14 @@ from datetime import date
 
 logger = logging.getLogger(__name__)
 
+from src.models.book_transaction import TransactionStatus
+
 class BookTransactionRepository:
 
     @staticmethod
     async def create_transaction(pool: Pool, transaction_data: dict) -> Dict[str, Any]:
-        logger.info("create_transaction...", transaction_data);
-        logger.debug("2nd debug create_transaction...", transaction_data);
+        logger.info("create_transaction...", transaction_data)
+        logger.debug("2nd debug create_transaction...", transaction_data)
 
         query = """
             INSERT INTO book_transactions 
@@ -29,6 +31,13 @@ class BookTransactionRepository:
                 transaction_data.get('return_date'),
                 transaction_data.get('status', 'Issued')
             )
+
+            # Reduce available copies
+            await conn.execute(
+                "UPDATE books SET available_copies = available_copies - 1 WHERE book_id = $1",
+                transaction_data['book_id']
+            )
+
             return dict(row) if row else None
 
     @staticmethod
@@ -131,7 +140,16 @@ class BookTransactionRepository:
         """
         async with pool.acquire() as conn:
             row = await conn.fetchrow(query, return_date or date.today(), transaction_id)
-            return dict(row) if row else None
+            if not row:
+                return None
+
+                # Increase available copies
+            await conn.execute(
+                "UPDATE books SET available_copies = available_copies + 1 WHERE book_id = $1",
+                row['book_id']
+            )
+
+            return dict(row)
 
     @staticmethod
     async def update_overdue_status(pool: Pool) -> int:
@@ -168,3 +186,56 @@ class BookTransactionRepository:
         async with pool.acquire() as conn:
             row = await conn.fetchrow(query, member_id)
             return row['active_count']
+
+    @staticmethod
+    async def get_book_issued_members(pool, book_id: int) -> List[Dict[str, Any]]:
+
+        try:
+            async with pool.acquire() as connection:
+                query = """
+                        SELECT 
+                            m.member_id,
+                            m.first_name,
+                            m.last_name,
+                            m.email,
+                            m.phone,
+                            bt.issue_date,
+                            bt.due_date,
+                            bt.transaction_id,
+                            bt.status
+                        FROM book_transactions bt
+                        JOIN members m ON bt.member_id = m.member_id
+                        WHERE bt.book_id = $1 
+                        AND bt.status IN ($2, $3)
+                        AND bt.return_date IS NULL
+                        ORDER BY bt.issue_date DESC
+                    """
+
+                rows = await connection.fetch(
+                    query,
+                    book_id,
+                    TransactionStatus.ISSUED.value,
+                    TransactionStatus.OVERDUE.value
+                )
+
+                members = []
+                for row in rows:
+                    member_data = {
+                        "member_id": row["member_id"],
+                        "first_name": row["first_name"],
+                        "last_name": row["last_name"],
+                        "email": row["email"],
+                        "phone": row["phone"],
+                        "issue_date": row["issue_date"].isoformat() if row["issue_date"] else None,
+                        "due_date": row["due_date"].isoformat() if row["due_date"] else None,
+                        "transaction_id": row["transaction_id"],
+                        "status": row["status"]
+                    }
+                    members.append(member_data)
+
+                return members
+
+        except Exception as e:
+            logger.error(f"Error getting book issued members: {str(e)}")
+            raise
+
