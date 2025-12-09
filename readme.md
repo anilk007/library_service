@@ -49,6 +49,45 @@ python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. borrowing_rec
 
 gRPC Book Service server is listening on port 50051.
 
+(6) Run tests
+
+# Install test dependencies
+pip install -r requirements-test.txt
+
+# Run all tests
+pytest
+
+# Run specific test file
+pytest tests/test_book_service.py -v
+
+# Run with coverage
+pytest --cov=src.services.book_service
+
+# Run specific test method
+pytest tests/test_book_service.py::TestBookService::test_add_book_success -v
+
+(7)
+pytest --cov=src
+
+(8)
+# Run all member service tests
+pytest tests/unit/services/test_member_service.py -v
+
+# Run with coverage
+pytest tests/unit/services/test_member_service.py --cov=src.services.member_service --cov-report=term-missing
+
+# Run all service tests
+pytest tests/unit/services/ --cov=src.services --cov-report=term-missing
+
+# Run all transaction service tests
+pytest tests/unit/services/test_book_transaction_service.py -v
+
+# Run with coverage
+pytest tests/unit/services/test_book_transaction_service.py --cov=src.services.book_transaction_service --cov-report=term-missing
+
+# Run all service tests
+pytest tests/unit/services/ --cov=src.services --cov-report=term-missing
+
 (6) issues
 
 (a) access denied
