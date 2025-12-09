@@ -13,23 +13,18 @@ class BookTransactionService:
     async def create_transaction(transaction_data: BookTransactionCreate):
         logger.info("create_transaction of service is called<><>")
 
-        # Convert Pydantic model to dict
         transaction_dict = transaction_data.dict()
 
-        # If due_date is not provided, calculate it automatically
         if not transaction_dict.get('due_date') and transaction_dict.get('issue_date'):
             issue_date = transaction_dict['issue_date']
             transaction_dict['due_date'] = issue_date + timedelta(days=BookLibraryConfig.DEFAULT_DUE_DAYS)
         elif not transaction_dict.get('due_date'):
-            # If neither due_date nor issue_date provided, use current date for issue_date
             transaction_dict['issue_date'] = date.today()
             transaction_dict['due_date'] = date.today() + timedelta(days=BookLibraryConfig.DEFAULT_DUE_DAYS)
 
-        # Set default status if not provided
         if not transaction_dict.get('status'):
             transaction_dict['status'] = TransactionStatus.ISSUED
 
-        # Get database pool and create transaction
         pool = await connect_db()
         try:
             result = await BookTransactionRepository.create_transaction(pool, transaction_dict)
@@ -49,12 +44,10 @@ class BookTransactionService:
         pool = await connect_db()
 
         try:
-            # Check if book is available using repository
             is_available = await BookTransactionRepository.is_book_available(pool, book_id)
             if not is_available:
                 return {"error": "Book is already issued"}
 
-            # Create new transaction with configurable due days
             issue_date = date.today()
             due_date = issue_date + timedelta(days=BookLibraryConfig.DEFAULT_DUE_DAYS)
 
@@ -67,7 +60,6 @@ class BookTransactionService:
                 "status": TransactionStatus.ISSUED
             }
 
-            # Create transaction using repository
             result = await BookTransactionRepository.create_transaction(pool, transaction_data)
 
             if result:
@@ -90,7 +82,6 @@ class BookTransactionService:
         pool = await connect_db()
 
         try:
-            # Check if transaction exists and is not returned
             transaction = await BookTransactionRepository.get_transaction_by_id(pool, transaction_id)
             if not transaction:
                 return {"error": "Transaction not found"}
@@ -98,7 +89,6 @@ class BookTransactionService:
             if transaction.get('return_date') is not None:
                 return {"error": "Book already returned"}
 
-            # Mark as returned using repository
             result = await BookTransactionRepository.mark_as_returned(pool, transaction_id)
 
             if result:
@@ -115,7 +105,6 @@ class BookTransactionService:
         pool = await connect_db()
 
         try:
-            # Get active transactions using repository
             active_transactions = await BookTransactionRepository.get_active_transactions(pool)
             return {"issued_books": active_transactions}
         except Exception as e:
@@ -127,10 +116,7 @@ class BookTransactionService:
         pool = await connect_db()
 
         try:
-            # First update overdue status
             await BookTransactionRepository.update_overdue_status(pool)
-
-            # Then get overdue transactions
             overdue_transactions = await BookTransactionRepository.get_overdue_transactions(pool)
             return {"overdue_books": overdue_transactions}
         except Exception as e:
@@ -142,10 +128,8 @@ class BookTransactionService:
         pool = await connect_db()
 
         try:
-            # Get member's active transactions using repository
             member_transactions = await BookTransactionRepository.get_transactions_by_member(pool, member_id)
 
-            # Filter for issued/overdue books
             active_books = [
                 t for t in member_transactions
                 if t["status"] in [TransactionStatus.ISSUED, TransactionStatus.OVERDUE]
