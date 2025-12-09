@@ -110,3 +110,6 @@ pytest tests/unit/services/test_book_transaction_service.py --cov=src.services.b
 
 # Run all service tests
 pytest tests/unit/services/ --cov=src.services --cov-report=term-missing
+
+(13) I faced an issue implementing gRPC with Protocol Buffers.  
+For the first phase, I have implemented the service using FastAPI.
